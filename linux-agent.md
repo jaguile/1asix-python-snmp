@@ -1,7 +1,5 @@
 # Preparem l'entorn de proves. Linux com a agent SNMP
 
-# Linux as an agent
-
 ## Pas 1. Configurem el dimoni snmpd
 
 He instal·lat el paquet `snmpd` en una màquina vuirtual Ubuntu Server 24.04 i he modificat algun paràmetre de la configuració per a que poguès escoltar peticions de la xarxa local.
@@ -155,4 +153,131 @@ Reinicio i torno a provar:
 ```bash
 joan@super-ThinkBook-14-G4-IAP:~$ snmpset -v2c -c private 192.168.56.101 system.sysContact.0 s "Pedro Picapiedra <pedrowillma@gmail.com>"
 SNMPv2-MIB::sysContact.0 = STRING: Pedro Picapiedra <pedrowillma@gmail.com>
+```
+
+## Pas 4. Configurar l'agent i el NM per a l'enviament de traps
+
+Els *TRAPS* a **SNMP** són notificacions des de l'agent cap al *SNMP manager*. A Linux, podem rebre TRAPS d'agents amb el dimoni *snmptrapd* instal·lat al *SNMP Manager*. 
+
+A un agent Linux podem enviar *TRAPS* amb la comanda `snmptrap`. La sintaxi de la comanda depèn molt de la versió de *SNMP*, però bàsicament, hem d'especificar la versió, la cadena de comunitat del *Network Manager*, l'adreça del *Network Manager*, un OID de tipus trap (OID_trap) i un o més OIDs amb valors.
+
+Hi han dues categories de traps:
+
+1. Genèrics
+
+2. Específics, creats per empreses
+
+Els OID de traps genèrics són els següents:
+
+```bash
+joan@super-ThinkBook-14-G4-IAP:~$ snmptranslate -Tp .1.3.6.1.6.3.1.1.5
++--snmpTraps(5)
+   |
+   +--coldStart(1)
+   +--warmStart(2)
+   +--linkDown(3)
+   +--linkUp(4)
+   +--authenticationFailure(5)
+```
+
+Anem a fer la primera prova. Primer, haurem de configurar el *SNMP Manager* per a que pugui escoltar possibles notificacion:
+
+```bash
+joan@super-ThinkBook-14-G4-IAP:~$ apt search snmptrap
+S'està ordenant… Fet
+Cerca a tot el text… Fet
+libnetsnmptrapd40t64/noble 5.9.4+dfsg-1.1ubuntu3 amd64
+  SNMP (Simple Network Management Protocol) trap library
+
+snmptrapd/noble 5.9.4+dfsg-1.1ubuntu3 amd64
+  Net-SNMP notification receiver
+
+snmptrapfmt/noble 1.18 amd64
+  configurable snmp trap handler daemon for snmpd
+
+snmptt/noble,noble 1.5-1 all
+  SNMP trap handler for use with snmptrapd
+```
+
+D'aquests paquets, m'interessa instal·lar el paquet `snmptrapd`.
+
+De quina manera puc processar els traps a snmptrapd? `man snmptrapd.conf`:
+
+```bash
+There are currently three types of processing that can be specified:
+
+              log    log  the  details of the notification - either in a specified file,
+                     to standard output (or stderr), or via syslog (or similar).
+
+              execute
+                     pass the details of the trap to a specified  handler  program,  in‐
+                     cluding embedded perl.
+
+              net    forward the trap to another notification receiver.
+```
+
+Descomento / afegeixo aquestes línees en el fitxer de configuració `/etc/snmp/snmptrapd.conf` (*SNMP Manager*):
+
+```bash
+disableAuthorization yes
+authCommunity log,execute,net public
+snmpTrapdAddr udp:162
+```
+
+Fem un restart del servei i ja tenim actiu el port 162 per escoltar traps:
+
+```bash
+joan@super-ThinkBook-14-G4-IAP:~$ sudo netstat -ul | grep snmp
+udp        0      0 localhost:snmp          0.0.0.0:*                          
+udp        0      0 0.0.0.0:snmp-trap       0.0.0.0:*                          
+udp6       0      0 ip6-localhost:snmp      [::]:*                             
+udp6       0      0 [::]:snmp-trap          [::]:*                             
+```
+
+Exemple de *TRAP* enviat des de client amb la comanda `snmptrap`:
+
+```bash
+profe@joshua:~$ snmptrap -v2c -c public 192.168.56.1 '' SNMPv2-MIB::coldStart.0 SNMPv2-MIB::sysName.0 s "MyDevice"
+```
+
+Aquesta comanda envia un trap amb la versió 2c a la cadena de comunitat *public* i al *SNMP Manager* 192.168.56.1. És un *TRAP* de tipus `coldStart` i EL *TRAP* passa el `sysName` amb valor *MyDevice*. A part dels OIDs amb llurs valors que afegim al trap i del OID_type, també s'envia per defecte l'OID `sysUpTime`:
+
+![alt text](image-5.png)
+
+**Exemple de com gestionar els traps rebuts**
+
+Anem a fer que els traps rebuts s'escriguin el fitxer de log `/var/log/trap.log`. Per això, he fet l'script en bash `snmptrap2log.sh:
+
+```bash
+#!/bin/bash
+# Escric els traps a un fitxer de logs
+LOG_F=/var/log/trap.log
+
+DATA=$(date +"%Y-%m-%d %T")
+
+while read line; do
+	echo "Capturat trap -- $DATA -- " >> $LOG_F
+	echo "----------------------------------" >> $LOG_F
+	echo "$line" >> $LOG_F
+	echo "----------------------------------" >> $LOG_F
+	echo >> $LOG_F
+done
+```
+
+Per a que aquest script pugui procesar el *TRAP* he d'afegir també la següent línea al `snmptrapd.conf`:
+
+```bash
+traphandle default /usr/bin/snmptrap2log.sh
+```
+
+Quan executo des de l'agent el *TRAP* d'abans, obtinc:
+
+```bash
+Capturat trap -- 2025-02-28 10:06:23 -- 
+----------------------------------
+<UNKNOWN>
+UDP: [192.168.56.101]:56365->[192.168.56.1]:162
+SNMPv2-MIB::snmpTrapOID.0 SNMPv2-MIB::coldStart.0
+SNMPv2-MIB::sysName.0 MyDevice
+----------------------------------
 ```
