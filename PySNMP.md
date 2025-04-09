@@ -104,3 +104,46 @@ Per definir un OID i llur valor, necessitem dues classes: `ObjectIdentity` (OID)
 ```
 
 Podem definir `ObjectIdentity` com a l'exemple o directament passant un string amb el valor de l'OID. Veure [MIB Variables](https://docs.lextudio.com/pysnmp/v7.1/docs/api-reference#mib-variables)
+
+## Funcions que farem servir en el projecte
+
+### Com executar-les
+
+Totes les funcions són assíncrones i per cridar-les ho podem fer així:
+
+```python
+# Exemple de crida de la funció snmpget
+
+asyncio.run(snmpget(version, comm, agent, mib, oid))
+```
+
+### snmpget.py
+
+La funció snmpget recull com a arguments la versió SNMP, la cadena de comunitat *rocommunity*, l'agent, el *MIB* (que crec que no ens farà falta) i l'*OID* llur valor volem consultar en l'agent.
+
+retorna una llista de parells de valors (normalment aquesta llista serà d'un element). El primer valor de cada element és l'*OID* i el següent el valor associat que hi ha en l'agent.
+
+#### Com fer-la servir
+
+```python
+    # Exemple de crida de snmpget i com fer servir la informació que retorna:
+
+    # varBnds és una llsita per la qual iteraré
+    varBinds = run_query(valor_query, valor_version, valor_rocomm, valor_agent, valor_mib, valor_oid, valor_set)
+
+    # resultat és una llista i cada element de la llista és un diccionari que té dos claus, la clau oid i la clau value:
+    resultat = [
+            {"oid": str(varBind[0]), "value": varBind[1]} 
+            for varBind in varBinds
+        ]        
+```
+
+Després, la variable `resultat` (que és una llista) es pot passar a una plantilla amb la funció `render_template()` de Flask. Exemple de com fer-ne ús a la plantilla:
+
+```python
+    {% for varBind in resultat %}
+        <p>
+            oid: {{varBind["oid"]}} >>>> valor: {{varBind["value"]}}
+        </p>
+    {% endfor %}
+```
