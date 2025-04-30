@@ -300,7 +300,7 @@ He de comentar el paràmetre `bind-address` o donar-li el valor `0.0.0.0` editan
  
 En aquest pas segueixo els passos de la variant 1 del següent enllaç:
 
-[snmptrap collector](https://github.com/n0braist/snmp_trap_collector)
+[snmptrap collector](http://ethertype.blogspot.com/2015/10/logging-snmp-traps-to-mysqlmariadb.html)
 
 Que, bàsicament, és, crear la base de dades *net_snmp* amb un parell de taules:
 
