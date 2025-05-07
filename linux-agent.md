@@ -234,7 +234,7 @@ udp6       0      0 ip6-localhost:snmp      [::]:*
 udp6       0      0 [::]:snmp-trap          [::]:*                             
 ```
 
-Exemple de *TRAP* enviat des de client amb la comanda `snmptrap`:
+Exemple de *TRAP* enviat des de l'agent amb la comanda `snmptrap`:
 
 ```bash
 profe@joshua:~$ snmptrap -v2c -c public 192.168.56.1 '' SNMPv2-MIB::coldStart.0 SNMPv2-MIB::sysName.0 s "MyDevice"
